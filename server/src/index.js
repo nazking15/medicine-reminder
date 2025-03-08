@@ -7,18 +7,22 @@ const { sendDailyReminders } = require('./utils/notificationService');
 
 const app = express();
 
-// CORS configuration
-app.use(cors({
-  origin: true, // This allows all origins
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
+// Handle preflight requests
+app.options('*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', 'https://medicine-reminder-hhaq.vercel.app');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(204).end();
+});
 
-// Handle OPTIONS requests explicitly
-app.options('*', cors());
+// CORS middleware for all other requests
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', 'https://medicine-reminder-hhaq.vercel.app');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
 
 app.use(express.json());
 
