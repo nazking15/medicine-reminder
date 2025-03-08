@@ -15,23 +15,42 @@ app.use((req, res, next) => {
   console.log('Incoming request:', {
     method: req.method,
     path: req.path,
-    headers: req.headers,
-    body: req.body
+    origin: req.headers.origin,
+    host: req.headers.host
   });
   next();
 });
 
+// CORS configuration
+const allowedOrigins = [
+  'https://medicine-reminder-hhaq.vercel.app',
+  'https://medicine-reminder-hazel.vercel.app'
+];
+
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: function (origin, callback) {
+    console.log('Request origin:', origin);
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Origin not allowed:', origin);
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  optionsSuccessStatus: 200,
-  preflightContinue: false
+  optionsSuccessStatus: 200
 }));
 
-// Handle OPTIONS requests explicitly
-app.options('*', cors());
+// Pre-flight requests
+app.options('*', (req, res) => {
+  console.log('Handling OPTIONS request');
+  res.sendStatus(200);
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
