@@ -37,34 +37,66 @@ app.options('*', (req, res) => {
   res.sendStatus(200);
 });
 
-// Health check endpoint (before routes and DB connection)
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'Server is running',
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
+// MongoDB connection
+let cachedDb = null;
+
+async function connectToDatabase() {
+  if (cachedDb) {
+    console.log('Using cached database connection');
+    return cachedDb;
+  }
+
+  console.log('Creating new database connection');
+  try {
+    const db = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    cachedDb = db;
+    console.log('Connected to MongoDB');
+    return db;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  }
+}
+
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  try {
+    await connectToDatabase();
+    res.json({ 
+      status: 'ok', 
+      message: 'Server is running',
+      mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Database connection failed',
+      error: error.message
+    });
+  }
 });
 
-// Database connection with retry logic
-const connectDB = async (retries = 5) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      console.log(`MongoDB connection attempt ${i + 1} of ${retries}`);
-      await mongoose.connect(process.env.MONGODB_URI, {
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-      });
-      console.log('Connected to MongoDB');
-      return true;
-    } catch (err) {
-      console.error(`MongoDB connection attempt ${i + 1} failed:`, err.message);
-      if (i === retries - 1) throw err;
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
-    }
+// Routes
+const medicineRoutes = require('./routes/medicineRoutes');
+
+// Middleware to ensure database connection before handling routes
+app.use('/api/medicines', async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (error) {
+    console.error('Database connection error:', error);
+    res.status(500).json({ 
+      error: 'Database connection failed',
+      message: error.message
+    });
   }
-  return false;
-};
+});
+
+app.use('/api/medicines', medicineRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -82,22 +114,19 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error', details: err.message });
 });
 
-// Initialize routes only after DB connection
-const initializeRoutes = () => {
-  const medicineRoutes = require('./routes/medicineRoutes');
-  app.use('/api/medicines', medicineRoutes);
+// Handle 404
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found', path: req.path });
+});
 
-  // Handle 404
-  app.use((req, res) => {
-    res.status(404).json({ error: 'Not Found', path: req.path });
-  });
-};
+// Export the Express app for serverless use
+module.exports = app;
 
 // Start server function
 const startServer = async (port) => {
   try {
     // Connect to MongoDB first
-    await connectDB();
+    await connectToDatabase();
     
     // Initialize routes after successful DB connection
     initializeRoutes();
