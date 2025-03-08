@@ -9,13 +9,29 @@ const app = express();
 
 // Basic middleware
 app.use(express.json());
+
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log('Incoming request:', {
+    method: req.method,
+    path: req.path,
+    headers: req.headers,
+    body: req.body
+  });
+  next();
+});
+
 app.use(cors({
-  origin: ['https://medicine-reminder-hhaq.vercel.app', 'https://medicine-reminder-hazel.vercel.app'],
+  origin: true, // Allow all origins in development
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 }));
+
+// Handle OPTIONS requests explicitly
+app.options('*', cors());
 
 // Error handling middleware
 app.use((err, req, res, next) => {
