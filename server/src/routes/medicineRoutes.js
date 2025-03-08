@@ -5,31 +5,37 @@ const mongoose = require('mongoose');
 
 // Get all medicines for a user
 router.get('/:userId', async (req, res) => {
+  console.log('GET request for medicines, userId:', req.params.userId);
   try {
     const medicines = await Medicine.find({ 
       userId: req.params.userId,
       active: true 
     });
+    console.log('Found medicines:', medicines);
     res.json(medicines);
   } catch (error) {
+    console.error('Error fetching medicines:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
 // Add a new medicine
 router.post('/', async (req, res) => {
+  console.log('POST request to add medicine. Body:', JSON.stringify(req.body, null, 2));
   try {
-    console.log('Received medicine data:', req.body);
-    
     // Validate required fields
     if (!req.body.name || !req.body.dosage || !req.body.frequency || !req.body.userId) {
-      console.log('Missing required fields:', {
-        name: !!req.body.name,
-        dosage: !!req.body.dosage,
-        frequency: !!req.body.frequency,
-        userId: !!req.body.userId
+      const missingFields = {
+        name: !req.body.name,
+        dosage: !req.body.dosage,
+        frequency: !req.body.frequency,
+        userId: !req.body.userId
+      };
+      console.log('Validation failed - missing fields:', missingFields);
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        details: missingFields
       });
-      return res.status(400).json({ message: 'Missing required fields' });
     }
 
     // Validate frequency array
@@ -63,13 +69,18 @@ router.post('/', async (req, res) => {
       active: true
     });
 
-    console.log('Created medicine object:', medicine);
+    console.log('Attempting to save medicine:', JSON.stringify(medicine, null, 2));
     const newMedicine = await medicine.save();
-    console.log('Saved medicine:', newMedicine);
+    console.log('Successfully saved medicine:', JSON.stringify(newMedicine, null, 2));
     res.status(201).json(newMedicine);
   } catch (error) {
     console.error('Error saving medicine:', error);
-    res.status(400).json({ message: error.message });
+    console.error('Stack trace:', error.stack);
+    res.status(400).json({ 
+      message: error.message,
+      type: error.name,
+      details: error.errors
+    });
   }
 });
 
