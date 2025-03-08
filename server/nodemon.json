@@ -1,0 +1,14 @@
+{
+  "watch": ["src/**/*.js"],
+  "ignore": ["node_modules/*", "*.test.js"],
+  "ext": "js",
+  "delay": 1000,
+  "verbose": true,
+  "execMap": {
+    "js": "node"
+  },
+  "restartable": "rs",
+  "events": {
+    "restart": "clear"
+  }
+} 
