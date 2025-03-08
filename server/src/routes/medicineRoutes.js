@@ -5,49 +5,54 @@ const mongoose = require('mongoose');
 
 // Get all medicines for a user
 router.get('/:userId', async (req, res) => {
-  console.log('GET request for medicines, userId:', req.params.userId);
   try {
+    console.log('Fetching medicines for user:', req.params.userId);
+    
+    if (!req.params.userId) {
+      return res.status(400).json({ 
+        error: 'Bad Request',
+        message: 'User ID is required'
+      });
+    }
+
+    // For test user, return empty array if no medicines exist
+    if (req.params.userId === 'testuser123') {
+      const medicines = await Medicine.find({ 
+        userId: req.params.userId,
+        active: true 
+      });
+      return res.json(medicines);
+    }
+
     const medicines = await Medicine.find({ 
       userId: req.params.userId,
       active: true 
     });
-    console.log('Found medicines:', medicines);
+
+    console.log(`Found ${medicines.length} medicines for user ${req.params.userId}`);
     res.json(medicines);
   } catch (error) {
-    console.error('Error fetching medicines:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Error in GET /medicines/:userId:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: 'Failed to fetch medicines',
+      details: error.message
+    });
   }
 });
 
 // Add a new medicine
 router.post('/', async (req, res) => {
-  console.log('POST request to add medicine. Body:', JSON.stringify(req.body, null, 2));
   try {
+    console.log('Adding new medicine:', req.body);
+
     // Validate required fields
     if (!req.body.name || !req.body.dosage || !req.body.frequency || !req.body.userId) {
-      const missingFields = {
-        name: !req.body.name,
-        dosage: !req.body.dosage,
-        frequency: !req.body.frequency,
-        userId: !req.body.userId
-      };
-      console.log('Validation failed - missing fields:', missingFields);
-      return res.status(400).json({ 
+      return res.status(400).json({
+        error: 'Bad Request',
         message: 'Missing required fields',
-        details: missingFields
+        required: ['name', 'dosage', 'frequency', 'userId']
       });
-    }
-
-    // Validate frequency array
-    if (!Array.isArray(req.body.frequency)) {
-      console.log('Invalid frequency format:', req.body.frequency);
-      return res.status(400).json({ message: 'Frequency must be an array' });
-    }
-
-    // Validate notification preferences
-    if (req.body.notificationPreferences?.email?.enabled && !req.body.notificationPreferences?.email?.address) {
-      console.log('Missing email address for enabled notifications');
-      return res.status(400).json({ message: 'Email address is required when notifications are enabled' });
     }
 
     const medicine = new Medicine({
@@ -59,27 +64,24 @@ router.post('/', async (req, res) => {
       })),
       notes: req.body.notes,
       userId: req.body.userId,
-      notificationPreferences: {
+      notificationPreferences: req.body.notificationPreferences || {
         email: {
-          enabled: req.body.notificationPreferences?.email?.enabled ?? true,
-          address: req.body.notificationPreferences?.email?.address,
-          reminderTime: req.body.notificationPreferences?.email?.reminderTime || "08:00"
+          enabled: true,
+          address: `${req.body.userId}@example.com`,
+          reminderTime: "08:00"
         }
-      },
-      active: true
+      }
     });
 
-    console.log('Attempting to save medicine:', JSON.stringify(medicine, null, 2));
     const newMedicine = await medicine.save();
-    console.log('Successfully saved medicine:', JSON.stringify(newMedicine, null, 2));
+    console.log('Medicine added successfully:', newMedicine);
     res.status(201).json(newMedicine);
   } catch (error) {
-    console.error('Error saving medicine:', error);
-    console.error('Stack trace:', error.stack);
+    console.error('Error adding medicine:', error);
     res.status(400).json({ 
-      message: error.message,
-      type: error.name,
-      details: error.errors
+      error: 'Bad Request',
+      message: 'Failed to add medicine',
+      details: error.message
     });
   }
 });
