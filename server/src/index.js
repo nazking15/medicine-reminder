@@ -10,15 +10,23 @@ const app = express();
 // Basic middleware
 app.use(express.json());
 app.use(cors({
-  origin: 'https://medicine-reminder-hhaq.vercel.app',
+  origin: ['https://medicine-reminder-hhaq.vercel.app', 'https://medicine-reminder-hazel.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
   optionsSuccessStatus: 200
 }));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Error details:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    headers: req.headers
+  });
+  
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
