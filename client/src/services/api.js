@@ -3,7 +3,7 @@ import axios from 'axios';
 // Use environment variables for API URL configuration
 const API_BASE_URL = process.env.NODE_ENV === 'development'
   ? 'http://localhost:3001/api'
-  : 'https://medicine-reminder-server.vercel.app/api';
+  : 'https://medicine-reminder-hazel.vercel.app/api';
 
 console.log('Using API base URL:', API_BASE_URL);
 
