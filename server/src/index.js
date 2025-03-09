@@ -1,3 +1,4 @@
+// Trigger Vercel redeployment - Updated JWT configuration
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
