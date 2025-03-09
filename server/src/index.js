@@ -152,10 +152,16 @@ const connectWithRetry = (retries = 5, delay = 5000) => {
   })
   .then(() => {
     console.log('Connected to MongoDB successfully');
-    const port = process.env.PORT || 3001;
-    app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
-    });
+    
+    // Only start the server in development environment
+    if (process.env.NODE_ENV === 'development') {
+      const port = process.env.PORT || 3001;
+      app.listen(port, () => {
+        console.log(`Development server is running on port ${port}`);
+      });
+    } else {
+      console.log('Server ready in serverless environment');
+    }
   })
   .catch((error) => {
     console.error('MongoDB connection error:', {
@@ -175,7 +181,13 @@ const connectWithRetry = (retries = 5, delay = 5000) => {
 };
 
 // Start connection process
-connectWithRetry();
+if (process.env.NODE_ENV === 'development') {
+  console.log('Starting server in development mode...');
+  connectWithRetry();
+} else {
+  console.log('Initializing in serverless mode...');
+  connectWithRetry();
+}
 
 // Export the Express app for serverless use
 module.exports = app; 
