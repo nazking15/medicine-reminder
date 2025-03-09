@@ -24,9 +24,32 @@ console.log('Environment configuration:', {
 
 const app = express();
 
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://medicine-reminder-hhaq.vercel.app',
+  'https://medicine-reminder-hazel.vercel.app'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      console.log('Origin not allowed:', origin);
+      return callback(null, false);
+    }
+    console.log('Origin allowed:', origin);
+    return callback(null, true);
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}));
+
 // Basic middleware
 app.use(express.json());
-app.use(cors());
 
 // Log all incoming requests
 app.use((req, res, next) => {
