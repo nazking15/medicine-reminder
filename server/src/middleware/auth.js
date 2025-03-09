@@ -13,6 +13,8 @@ const auth = async (req, res, next) => {
       });
     }
 
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('JWT_SECRET first 5 chars:', process.env.JWT_SECRET.substring(0, 5));
     console.log('JWT_SECRET length:', process.env.JWT_SECRET.length);
     console.log('Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
 
@@ -26,10 +28,22 @@ const auth = async (req, res, next) => {
       });
     }
 
+    // Log token details without exposing sensitive data
+    console.log('Token details:', {
+      length: token.length,
+      prefix: token.substring(0, 10),
+      parts: token.split('.').length
+    });
+
     try {
       console.log('Attempting to verify token...');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       console.log('Token verified successfully. User ID:', decoded.userId);
+      console.log('Token payload:', {
+        userId: decoded.userId,
+        exp: new Date(decoded.exp * 1000).toISOString(),
+        iat: new Date(decoded.iat * 1000).toISOString()
+      });
 
       // Ensure database connection
       if (!mongoose.connection || mongoose.connection.readyState !== 1) {
@@ -57,8 +71,10 @@ const auth = async (req, res, next) => {
       console.error('JWT verification error:', {
         error: jwtError.message,
         name: jwtError.name,
-        token: token.substring(0, 10) + '...',
-        secretLength: process.env.JWT_SECRET.length
+        tokenLength: token.length,
+        tokenPrefix: token.substring(0, 10),
+        secretLength: process.env.JWT_SECRET.length,
+        secretPrefix: process.env.JWT_SECRET.substring(0, 5)
       });
       
       return res.status(401).json({
