@@ -17,6 +17,14 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
+// Log environment configuration
+console.log('Environment configuration:', {
+  NODE_ENV: process.env.NODE_ENV,
+  JWT_SECRET_LENGTH: process.env.JWT_SECRET?.length,
+  MONGODB_URI_SET: !!process.env.MONGODB_URI,
+  PORT: process.env.PORT || 3001
+});
+
 const app = express();
 
 // Basic middleware
