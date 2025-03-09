@@ -4,6 +4,9 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const cron = require('node-cron');
 const { sendDailyReminders } = require('./utils/notificationService');
+const authRoutes = require('./routes/authRoutes');
+const medicineRoutes = require('./routes/medicineRoutes');
+const auth = require('./middleware/auth');
 
 const app = express();
 
@@ -24,7 +27,9 @@ app.use((req, res, next) => {
 
 // CORS configuration
 app.use(cors({
-  origin: '*', // Allow all origins temporarily for debugging
+  origin: process.env.NODE_ENV === 'development' 
+    ? ['http://localhost:3000', 'http://localhost:3001'] 
+    : process.env.CLIENT_URL || 'https://medicine-reminder-hhaq.vercel.app',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -33,70 +38,30 @@ app.use(cors({
 
 // Pre-flight requests
 app.options('*', (req, res) => {
-  console.log('Handling OPTIONS request');
+  console.log('Handling OPTIONS request from:', req.headers.origin);
   res.sendStatus(200);
 });
-
-// MongoDB connection
-let cachedDb = null;
-
-async function connectToDatabase() {
-  if (cachedDb) {
-    console.log('Using cached database connection');
-    return cachedDb;
-  }
-
-  console.log('Creating new database connection');
-  try {
-    const db = await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    });
-    cachedDb = db;
-    console.log('Connected to MongoDB');
-    return db;
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    throw error;
-  }
-}
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    await connectToDatabase();
-    res.json({ 
-      status: 'ok', 
-      message: 'Server is running',
-      mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-    });
+    await mongoose.connection.db.admin().ping();
+    res.json({ status: 'healthy', message: 'Server is running and database is connected' });
   } catch (error) {
+    console.error('Health check failed:', error);
     res.status(500).json({ 
-      status: 'error',
+      status: 'unhealthy',
       message: 'Database connection failed',
       error: error.message
     });
   }
 });
 
-// Routes
-const medicineRoutes = require('./routes/medicineRoutes');
+// Auth routes (unprotected)
+app.use('/api/auth', authRoutes);
 
-// Middleware to ensure database connection before handling routes
-app.use('/api/medicines', async (req, res, next) => {
-  try {
-    await connectToDatabase();
-    next();
-  } catch (error) {
-    console.error('Database connection error:', error);
-    res.status(500).json({ 
-      error: 'Database connection failed',
-      message: error.message
-    });
-  }
-});
-
-app.use('/api/medicines', medicineRoutes);
+// Protected routes
+app.use('/api/medicines', auth, medicineRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -119,31 +84,33 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-// For local development only
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, async () => {
-    try {
-      await connectToDatabase();
-      console.log(`Server is running on port ${PORT}`);
-      
-      // Schedule daily reminders
-      cron.schedule(process.env.REMINDER_TIME || '0 8 * * *', async () => {
-        try {
-          await sendDailyReminders();
-          console.log('Daily reminders sent successfully');
-        } catch (error) {
-          console.error('Error sending daily reminders:', error);
-        }
-      }, {
-        timezone: process.env.TIMEZONE || "Asia/Singapore"
-      });
-    } catch (error) {
-      console.error('Failed to start server:', error);
-      process.exit(1);
-    }
+// Schedule daily reminders
+const reminderSchedule = process.env.REMINDER_SCHEDULE || '0 8 * * *'; // Default to 8 AM
+cron.schedule(reminderSchedule, async () => {
+  try {
+    console.log('Running scheduled medicine reminders...');
+    await sendDailyReminders();
+    console.log('Daily reminders sent successfully');
+  } catch (error) {
+    console.error('Error sending daily reminders:', error);
+  }
+}, {
+  timezone: process.env.TIMEZONE || 'UTC'
+});
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('Connected to MongoDB');
+    const port = process.env.PORT || 3001;
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
   });
-}
 
 // Export the Express app for serverless use
 module.exports = app; 

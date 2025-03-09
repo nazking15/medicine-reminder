@@ -44,83 +44,54 @@ router.get('/:userId', async (req, res) => {
 // Add a new medicine
 router.post('/', async (req, res) => {
   try {
-    console.log('Adding new medicine - Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Adding new medicine - Full request body:', JSON.stringify(req.body, null, 2));
+    console.log('Email from request:', req.body.notificationPreferences?.email?.address);
 
     // Validate required fields
-    const requiredFields = ['name', 'dosage', 'frequency', 'userId'];
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-    
-    if (missingFields.length > 0) {
-      console.log('Missing required fields:', missingFields);
+    if (!req.body.name || !req.body.dosage || !req.body.frequency || !req.body.userId) {
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Missing required fields',
-        missingFields: missingFields
+        required: ['name', 'dosage', 'frequency', 'userId']
       });
     }
 
-    // Validate frequency array
-    if (!Array.isArray(req.body.frequency)) {
-      console.log('Invalid frequency format:', req.body.frequency);
+    // Validate notification preferences and email
+    if (!req.body.notificationPreferences?.email?.address) {
+      console.log('Email validation failed - notification preferences:', JSON.stringify(req.body.notificationPreferences, null, 2));
       return res.status(400).json({
         error: 'Bad Request',
-        message: 'Frequency must be an array of objects with time property'
+        message: 'Email address is required',
+        details: 'Please provide a valid email address in notificationPreferences.email.address'
       });
     }
 
-    // Create medicine object with validated data
-    const medicineData = {
-      name: req.body.name.trim(),
-      dosage: req.body.dosage.trim(),
+    const medicine = new Medicine({
+      name: req.body.name,
+      dosage: req.body.dosage,
       frequency: req.body.frequency.map(f => ({
         time: f.time,
         taken: false
       })),
+      notes: req.body.notes,
       userId: req.body.userId,
-      notes: req.body.notes ? req.body.notes.trim() : '',
       notificationPreferences: {
         email: {
-          enabled: true,
-          address: req.body.email || `${req.body.userId}@example.com`,
-          reminderTime: req.body.reminderTime || "08:00"
+          enabled: req.body.notificationPreferences.email.enabled ?? true,
+          address: req.body.notificationPreferences.email.address,
+          reminderTime: req.body.notificationPreferences.email.reminderTime || "08:00"
         }
       }
-    };
+    });
 
-    console.log('Creating medicine with data:', JSON.stringify(medicineData, null, 2));
-
-    const medicine = new Medicine(medicineData);
+    console.log('Medicine object before save:', JSON.stringify(medicine, null, 2));
     const newMedicine = await medicine.save();
-    
-    console.log('Medicine added successfully:', JSON.stringify(newMedicine, null, 2));
+    console.log('Medicine saved successfully with email:', newMedicine.notificationPreferences.email.address);
     res.status(201).json(newMedicine);
   } catch (error) {
     console.error('Error adding medicine:', error);
-    
-    // Handle validation errors
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        error: 'Validation Error',
-        message: 'Invalid data provided',
-        details: Object.values(error.errors).map(err => ({
-          field: err.path,
-          message: err.message
-        }))
-      });
-    }
-
-    // Handle MongoDB errors
-    if (error.name === 'MongoError' || error.name === 'MongoServerError') {
-      return res.status(500).json({
-        error: 'Database Error',
-        message: 'Failed to save medicine',
-        details: error.message
-      });
-    }
-
-    // Handle other errors
-    res.status(500).json({ 
-      error: 'Internal Server Error',
+    res.status(400).json({ 
+      error: 'Bad Request',
       message: 'Failed to add medicine',
       details: error.message
     });
@@ -153,13 +124,18 @@ router.patch('/:id', async (req, res) => {
 
     // Update notification preferences if provided
     if (req.body.notificationPreferences) {
-      if (req.body.notificationPreferences.email?.enabled && !req.body.notificationPreferences.email?.address) {
-        return res.status(400).json({ message: 'Email address is required when notifications are enabled' });
+      if (!req.body.notificationPreferences.email?.address) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Email address is required for notifications',
+          details: 'Please provide an email address in notificationPreferences.email.address'
+        });
       }
+
       medicine.notificationPreferences = {
         email: {
           enabled: req.body.notificationPreferences.email?.enabled ?? medicine.notificationPreferences.email.enabled,
-          address: req.body.notificationPreferences.email?.address || medicine.notificationPreferences.email.address,
+          address: req.body.notificationPreferences.email.address,
           reminderTime: req.body.notificationPreferences.email?.reminderTime || medicine.notificationPreferences.email.reminderTime
         }
       };

@@ -56,9 +56,7 @@ const medicineSchema = new mongoose.Schema({
       },
       address: {
         type: String,
-        required: function() {
-          return this.notificationPreferences?.email?.enabled;
-        },
+        required: [true, 'Email address is required'],
         trim: true,
         validate: {
           validator: function(v) {
@@ -89,5 +87,13 @@ const medicineSchema = new mongoose.Schema({
 
 // Add index for better query performance
 medicineSchema.index({ userId: 1, active: 1 });
+
+// Middleware to ensure email address is always set
+medicineSchema.pre('save', function(next) {
+  if (!this.notificationPreferences?.email?.address) {
+    return next(new Error('Email address is required'));
+  }
+  next();
+});
 
 module.exports = mongoose.model('Medicine', medicineSchema); 
