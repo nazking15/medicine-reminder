@@ -3,6 +3,8 @@ const { sendDailyReminders } = require('../utils/notificationService');
 
 // This endpoint will be called by Vercel Cron
 module.exports = async function handler(req, res) {
+  let mongoConnection = null;
+  
   try {
     // Verify the request is from Vercel Cron
     const authHeader = req.headers.authorization;
@@ -13,40 +15,37 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Send response immediately to prevent timeout
+    res.status(200).json({
+      status: 'accepted',
+      message: 'Daily reminder job started',
+      timestamp: new Date().toISOString()
+    });
+
     console.log('Starting daily reminder job...');
     console.log('Current time:', new Date().toISOString());
     console.log('Timezone:', process.env.TIMEZONE);
 
-    // Connect to MongoDB if not connected
-    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
-      console.log('Connecting to MongoDB...');
-      await mongoose.connect(process.env.MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-      });
-      console.log('Connected to MongoDB');
-    }
+    // Connect to MongoDB
+    console.log('Connecting to MongoDB...');
+    mongoConnection = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000
+    });
+    console.log('Connected to MongoDB');
 
     // Send reminders
     await sendDailyReminders();
-
     console.log('Daily reminder job completed successfully');
-    res.status(200).json({
-      status: 'success',
-      message: 'Daily reminders sent successfully',
-      timestamp: new Date().toISOString()
-    });
+
   } catch (error) {
     console.error('Error in daily reminder job:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to send daily reminders',
-      error: error.message
-    });
+    // We can't send response here as it's already been sent
   } finally {
     // Close MongoDB connection
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      await mongoose.connection.close();
+    if (mongoConnection) {
+      await mongoConnection.disconnect();
       console.log('Closed MongoDB connection');
     }
   }
