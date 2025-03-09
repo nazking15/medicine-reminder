@@ -44,42 +44,83 @@ router.get('/:userId', async (req, res) => {
 // Add a new medicine
 router.post('/', async (req, res) => {
   try {
-    console.log('Adding new medicine:', req.body);
+    console.log('Adding new medicine - Request body:', JSON.stringify(req.body, null, 2));
 
     // Validate required fields
-    if (!req.body.name || !req.body.dosage || !req.body.frequency || !req.body.userId) {
+    const requiredFields = ['name', 'dosage', 'frequency', 'userId'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
+      console.log('Missing required fields:', missingFields);
       return res.status(400).json({
         error: 'Bad Request',
         message: 'Missing required fields',
-        required: ['name', 'dosage', 'frequency', 'userId']
+        missingFields: missingFields
       });
     }
 
-    const medicine = new Medicine({
-      name: req.body.name,
-      dosage: req.body.dosage,
+    // Validate frequency array
+    if (!Array.isArray(req.body.frequency)) {
+      console.log('Invalid frequency format:', req.body.frequency);
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Frequency must be an array of objects with time property'
+      });
+    }
+
+    // Create medicine object with validated data
+    const medicineData = {
+      name: req.body.name.trim(),
+      dosage: req.body.dosage.trim(),
       frequency: req.body.frequency.map(f => ({
         time: f.time,
         taken: false
       })),
-      notes: req.body.notes,
       userId: req.body.userId,
-      notificationPreferences: req.body.notificationPreferences || {
+      notes: req.body.notes ? req.body.notes.trim() : '',
+      notificationPreferences: {
         email: {
           enabled: true,
-          address: `${req.body.userId}@example.com`,
-          reminderTime: "08:00"
+          address: req.body.email || `${req.body.userId}@example.com`,
+          reminderTime: req.body.reminderTime || "08:00"
         }
       }
-    });
+    };
 
+    console.log('Creating medicine with data:', JSON.stringify(medicineData, null, 2));
+
+    const medicine = new Medicine(medicineData);
     const newMedicine = await medicine.save();
-    console.log('Medicine added successfully:', newMedicine);
+    
+    console.log('Medicine added successfully:', JSON.stringify(newMedicine, null, 2));
     res.status(201).json(newMedicine);
   } catch (error) {
     console.error('Error adding medicine:', error);
-    res.status(400).json({ 
-      error: 'Bad Request',
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Invalid data provided',
+        details: Object.values(error.errors).map(err => ({
+          field: err.path,
+          message: err.message
+        }))
+      });
+    }
+
+    // Handle MongoDB errors
+    if (error.name === 'MongoError' || error.name === 'MongoServerError') {
+      return res.status(500).json({
+        error: 'Database Error',
+        message: 'Failed to save medicine',
+        details: error.message
+      });
+    }
+
+    // Handle other errors
+    res.status(500).json({ 
+      error: 'Internal Server Error',
       message: 'Failed to add medicine',
       details: error.message
     });
