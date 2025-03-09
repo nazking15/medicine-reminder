@@ -3,11 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const cron = require('node-cron');
-const { sendDailyReminders } = require('./utils/notificationService');
-const authRoutes = require('./routes/authRoutes');
-const medicineRoutes = require('./routes/medicineRoutes');
-const auth = require('./middleware/auth');
+const { connectToDatabase } = require('./utils/db');
+const initializeRoutes = require('./routes');
 
 // Validate required environment variables
 const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
@@ -84,54 +81,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// Connect to MongoDB with retry logic
-let cachedDb = null;
-
-const connectToDatabase = async () => {
-  if (cachedDb) {
-    console.log('Using cached database connection');
-    return cachedDb;
-  }
-
-  console.log('Creating new database connection');
-  const db = await mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
-    retryWrites: true,
-    w: 'majority'
-  });
-
-  cachedDb = db;
-  return db;
-};
+// Initialize routes
+initializeRoutes(app);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    const db = await connectToDatabase();
-    await db.connection.db.admin().ping();
-    res.json({ 
-      status: 'healthy', 
-      message: 'Server is running and database is connected',
-      environment: process.env.NODE_ENV || 'unknown'
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    res.json({
+      status: 'healthy',
+      message: 'Server is running and database is ' + dbStatus,
+      environment: process.env.NODE_ENV
     });
   } catch (error) {
-    console.error('Health check failed:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       status: 'unhealthy',
-      message: 'Database connection failed',
-      error: error.message,
-      environment: process.env.NODE_ENV || 'unknown'
+      message: 'Server error',
+      error: error.message
     });
   }
 });
-
-// Auth routes (unprotected)
-app.use('/api/auth', authRoutes);
-
-// Protected routes
-app.use('/api/medicines', auth, medicineRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -154,37 +123,20 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-// Schedule daily reminders
-const reminderSchedule = process.env.REMINDER_SCHEDULE || '0 8 * * *'; // Default to 8 AM
-cron.schedule(reminderSchedule, async () => {
-  try {
-    console.log('Running scheduled medicine reminders...');
-    await sendDailyReminders();
-    console.log('Daily reminders sent successfully');
-  } catch (error) {
-    console.error('Error sending daily reminders:', error);
-  }
-}, {
-  timezone: process.env.TIMEZONE || 'UTC'
-});
-
-// Development server startup
-if (process.env.NODE_ENV === 'development') {
-  console.log('Starting server in development mode...');
+// Connect to database if not in serverless environment
+if (process.env.NODE_ENV !== 'production') {
   connectToDatabase()
     .then(() => {
-      const port = process.env.PORT || 3001;
-      app.listen(port, () => {
-        console.log(`Development server is running on port ${port}`);
+      const PORT = process.env.PORT || 3001;
+      app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
       });
     })
-    .catch((error) => {
-      console.error('Failed to start development server:', error);
+    .catch(error => {
+      console.error('Failed to start server:', error);
       process.exit(1);
     });
-} else {
-  console.log('Initializing in serverless mode...');
 }
 
-// Export the Express app for serverless use
+// Export for serverless
 module.exports = app; 
