@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 const UserContext = createContext();
 
@@ -21,19 +22,8 @@ export const UserProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
+      const response = await api.post('/auth/login', { email, password });
+      const data = response.data;
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -41,25 +31,18 @@ export const UserProvider = ({ children }) => {
       navigate('/dashboard');
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Login error:', error.response?.data || error.message);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || error.message || 'Login failed'
+      };
     }
   };
 
   const register = async (email, password, name) => {
     try {
-      const response = await fetch('http://localhost:3001/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, name }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
+      const response = await api.post('/auth/register', { email, password, name });
+      const data = response.data;
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -67,7 +50,11 @@ export const UserProvider = ({ children }) => {
       navigate('/dashboard');
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Registration error:', error.response?.data || error.message);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || error.message || 'Registration failed'
+      };
     }
   };
 
