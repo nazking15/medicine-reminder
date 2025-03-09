@@ -1,11 +1,13 @@
 import axios from 'axios';
 
 // Use environment variables for API URL configuration
-const API_BASE_URL = process.env.NODE_ENV === 'development'
-  ? 'http://localhost:3001/api'
-  : 'https://medicine-reminder-hazel.vercel.app/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:3001/api'
+    : 'https://medicine-reminder-hazel.vercel.app/api');
 
-console.log('Using API base URL:', API_BASE_URL);
+console.log('Environment:', process.env.NODE_ENV);
+console.log('API base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
