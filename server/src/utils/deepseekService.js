@@ -1,26 +1,26 @@
-const OpenAI = require('openai');
+const { OpenAI } = require('openai');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
-let openai;
-try {
-  openai = new OpenAI({
-    baseURL: 'https://api.deepseek.com/v1',
-    apiKey: process.env.DEEPSEEK_API_KEY
-  });
-} catch (error) {
-  console.warn('Warning: Deepseek API not configured. AI-powered messages will be disabled.');
-}
+const openai = new OpenAI({
+  baseURL: 'https://api.deepseek.com/v1',
+  apiKey: process.env.DEEPSEEK_API_KEY
+});
+
+// Fallback messages if API fails
+const fallbackMessages = [
+  "Every dose is a step towards better health. Keep going!",
+  "Your dedication to your health is inspiring. Stay strong!",
+  "Taking care of yourself is the best investment. You're doing great!",
+  "Small steps lead to big changes. Keep up the good work!",
+  "Your well-being matters, and you're doing a fantastic job!"
+];
 
 const generatePositiveMessage = async (context = {}) => {
   try {
-    if (!openai) {
-      return context.name 
-        ? `Keep up the great work with your ${context.medicineName}, ${context.name}!`
-        : "Keep going strong with your medicine routine!";
-    }
-
-    console.log('Generating positive message with context:', context);
+    console.log('Attempting to generate message with Deepseek API...');
+    console.log('Context:', context);
+    console.log('API Key length:', process.env.DEEPSEEK_API_KEY?.length || 0);
     
     const prompt = `Generate a short, uplifting message (max 2 sentences) for someone taking their daily medicine. 
     The message should be encouraging and focus on health, well-being, and personal growth.
@@ -44,13 +44,23 @@ const generatePositiveMessage = async (context = {}) => {
     });
 
     const message = completion.choices[0].message.content.trim();
-    console.log('Generated message:', message);
+    console.log('Successfully generated message:', message);
     return message;
   } catch (error) {
-    console.error('Error generating positive message:', error);
-    return context.name 
-      ? `Keep up the great work with your ${context.medicineName}, ${context.name}!`
-      : "Every step you take towards better health is a victory. Keep going strong!";
+    console.error('Error generating message with Deepseek:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Use fallback message
+    const fallbackMessage = context.name 
+      ? `Keep up the great work with your ${context.medicineName}, ${context.name}! Your dedication to health is inspiring.`
+      : fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
+    
+    console.log('Using fallback message:', fallbackMessage);
+    return fallbackMessage;
   }
 };
 
