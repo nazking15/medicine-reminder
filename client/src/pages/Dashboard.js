@@ -7,18 +7,34 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Menu,
+  MenuItem,
   Paper,
 } from '@mui/material';
-import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Add as AddIcon, Refresh as RefreshIcon, AccountCircle } from '@mui/icons-material';
 import MedicineList from '../components/MedicineList';
 import MedicineForm from '../components/MedicineForm';
 import { useUser } from '../context/UserContext';
 
 const Dashboard = () => {
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
   const [key, setKey] = useState(0); // For forcing re-render of MedicineList
+  const [anchorEl, setAnchorEl] = useState(null);
+
+  const handleMenuClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    handleMenuClose();
+    logout();
+  };
 
   const handleAddClick = () => {
     setSelectedMedicine(null);
@@ -32,18 +48,51 @@ const Dashboard = () => {
 
   const handleFormSuccess = () => {
     setKey(prev => prev + 1);
+    setIsFormOpen(false);
   };
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static" color="primary">
+      <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Medicine Reminder
           </Typography>
-          <Typography variant="subtitle1" sx={{ mr: 2 }}>
-            Welcome, {user.name}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<AddIcon />}
+              onClick={handleAddClick}
+            >
+              Add Medicine
+            </Button>
+            <IconButton
+              size="large"
+              onClick={handleMenuClick}
+              color="inherit"
+            >
+              <AccountCircle />
+            </IconButton>
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleMenuClose}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+            >
+              <MenuItem disabled>
+                <Typography variant="body2">{user?.email}</Typography>
+              </MenuItem>
+              <MenuItem onClick={handleLogout}>Logout</MenuItem>
+            </Menu>
+          </Box>
         </Toolbar>
       </AppBar>
 
@@ -57,14 +106,6 @@ const Dashboard = () => {
               <IconButton onClick={() => setKey(prev => prev + 1)} sx={{ mr: 1 }}>
                 <RefreshIcon />
               </IconButton>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<AddIcon />}
-                onClick={handleAddClick}
-              >
-                Add Medicine
-              </Button>
             </Box>
           </Box>
 

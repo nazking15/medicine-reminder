@@ -26,16 +26,19 @@ import { useUser } from '../context/UserContext';
 
 const MedicineForm = ({ open, onClose, medicine, onSuccess }) => {
   const { user } = useUser();
+  console.log('User context in MedicineForm:', user);
+
+  // Initialize form data with empty values
   const [formData, setFormData] = useState({
     name: '',
     dosage: '',
     frequency: [],
     notes: '',
-    userId: user.id,
+    userId: '',
     notificationPreferences: {
       email: {
         enabled: true,
-        address: user.email || '',
+        address: user?.email || '',
         reminderTime: "08:00"
       }
     }
@@ -44,28 +47,49 @@ const MedicineForm = ({ open, onClose, medicine, onSuccess }) => {
   const [numTimes, setNumTimes] = useState(1);
   const [times, setTimes] = useState([dayjs().hour(8).minute(0)]);
 
+  // Update form data when user context changes
+  useEffect(() => {
+    if (user?.email) {
+      console.log('Setting user email in form:', user.email);
+      setFormData(prev => ({
+        ...prev,
+        userId: user.id,
+        notificationPreferences: {
+          ...prev.notificationPreferences,
+          email: {
+            ...prev.notificationPreferences.email,
+            address: user.email
+          }
+        }
+      }));
+    }
+  }, [user]);
+
+  // Update form data when medicine changes
   useEffect(() => {
     if (medicine) {
+      console.log('Setting medicine data in form:', medicine);
       setFormData({
-        name: medicine.name,
-        dosage: medicine.dosage,
+        name: medicine.name || '',
+        dosage: medicine.dosage || '',
         frequency: medicine.frequency || [],
         notes: medicine.notes || '',
-        userId: medicine.userId,
-        notificationPreferences: medicine.notificationPreferences || {
+        userId: user?.id || medicine.userId,
+        notificationPreferences: {
           email: {
-            enabled: true,
-            address: user.email || '',
-            reminderTime: "08:00"
+            enabled: medicine.notificationPreferences?.email?.enabled ?? true,
+            address: medicine.notificationPreferences?.email?.address || user?.email || '',
+            reminderTime: medicine.notificationPreferences?.email?.reminderTime || "08:00"
           }
         }
       });
+      
       if (Array.isArray(medicine.frequency)) {
         setNumTimes(medicine.frequency.length);
         setTimes(medicine.frequency.map(f => dayjs(f.time, 'HH:mm')));
       }
     }
-  }, [medicine, user.email]);
+  }, [medicine, user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -91,6 +115,8 @@ const MedicineForm = ({ open, onClose, medicine, onSuccess }) => {
 
   const handleEmailChange = (e) => {
     const { value } = e.target;
+    console.log('Email change event - new value:', value);
+    
     setFormData(prev => ({
       ...prev,
       notificationPreferences: {
@@ -140,34 +166,62 @@ const MedicineForm = ({ open, onClose, medicine, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     try {
+      // Create frequency array from times
       const frequency = times.map(time => ({
         time: time.format('HH:mm'),
         taken: false
       }));
 
-      const submitData = {
-        ...formData,
-        frequency
-      };
+      // Ensure we have the user's email
+      const emailAddress = formData.notificationPreferences.email.address || user?.email;
+      if (!emailAddress) {
+        console.error('No email address available');
+        alert('Please provide an email address for notifications');
+        return;
+      }
 
+      // Create the data to submit
+      const submitData = {
+        name: formData.name,
+        dosage: formData.dosage,
+        frequency,
+        notes: formData.notes,
+        userId: user?.id,
+        notificationPreferences: {
+          email: {
+            enabled: formData.notificationPreferences.email.enabled,
+            address: emailAddress,
+            reminderTime: formData.notificationPreferences.email.reminderTime
+          }
+        }
+      };
+      
+      console.log('Submitting medicine data:', submitData);
+
+      // Submit the data
       if (medicine) {
         await medicineService.updateMedicine(medicine._id, submitData);
       } else {
         await medicineService.addMedicine(submitData);
       }
+      
+      // Call success callback and close the form
       onSuccess();
       onClose();
+      
+      // Reset form
       setFormData({
         name: '',
         dosage: '',
         frequency: [],
         notes: '',
-        userId: user.id,
+        userId: user?.id || '',
         notificationPreferences: {
           email: {
             enabled: true,
-            address: user.email || '',
+            address: user?.email || '',
             reminderTime: "08:00"
           }
         }
@@ -176,6 +230,7 @@ const MedicineForm = ({ open, onClose, medicine, onSuccess }) => {
       setTimes([dayjs().hour(8).minute(0)]);
     } catch (error) {
       console.error('Error saving medicine:', error);
+      alert(`Error saving medicine: ${error.message}`);
     }
   };
 
