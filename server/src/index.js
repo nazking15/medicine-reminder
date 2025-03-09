@@ -26,10 +26,25 @@ app.use((req, res, next) => {
 });
 
 // CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://medicine-reminder-hhaq.vercel.app',
+  'https://medicine-reminder.vercel.app'
+];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'development' 
-    ? ['http://localhost:3000', 'http://localhost:3001'] 
-    : process.env.CLIENT_URL || 'https://medicine-reminder-hhaq.vercel.app',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      console.log('Origin not allowed:', origin);
+      return callback(null, false);
+    }
+    console.log('Origin allowed:', origin);
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
