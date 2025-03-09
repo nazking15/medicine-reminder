@@ -122,19 +122,43 @@ cron.schedule(reminderSchedule, async () => {
   timezone: process.env.TIMEZONE || 'UTC'
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+// Connect to MongoDB with retry logic
+const connectWithRetry = (retries = 5, delay = 5000) => {
+  console.log(`Attempting to connect to MongoDB (${retries} retries left)`);
+  
+  return mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000,
+    retryWrites: true,
+    w: 'majority'
+  })
   .then(() => {
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB successfully');
     const port = process.env.PORT || 3001;
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
   })
   .catch((error) => {
-    console.error('MongoDB connection error:', error);
-    process.exit(1);
+    console.error('MongoDB connection error:', {
+      message: error.message,
+      code: error.code,
+      reason: error.reason?.type
+    });
+
+    if (retries > 0) {
+      console.log(`Retrying connection in ${delay/1000} seconds...`);
+      setTimeout(() => connectWithRetry(retries - 1, delay), delay);
+    } else {
+      console.error('Failed to connect to MongoDB after multiple retries');
+      process.exit(1);
+    }
   });
+};
+
+// Start connection process
+connectWithRetry();
 
 // Export the Express app for serverless use
 module.exports = app; 
