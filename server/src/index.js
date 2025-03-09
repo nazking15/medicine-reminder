@@ -83,17 +83,45 @@ app.use((req, res, next) => {
   next();
 });
 
+// Connect to MongoDB with retry logic
+let cachedDb = null;
+
+const connectToDatabase = async () => {
+  if (cachedDb) {
+    console.log('Using cached database connection');
+    return cachedDb;
+  }
+
+  console.log('Creating new database connection');
+  const db = await mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000,
+    retryWrites: true,
+    w: 'majority'
+  });
+
+  cachedDb = db;
+  return db;
+};
+
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    await mongoose.connection.db.admin().ping();
-    res.json({ status: 'healthy', message: 'Server is running and database is connected' });
+    const db = await connectToDatabase();
+    await db.connection.db.admin().ping();
+    res.json({ 
+      status: 'healthy', 
+      message: 'Server is running and database is connected',
+      environment: process.env.NODE_ENV || 'unknown'
+    });
   } catch (error) {
     console.error('Health check failed:', error);
     res.status(500).json({ 
       status: 'unhealthy',
       message: 'Database connection failed',
-      error: error.message
+      error: error.message,
+      environment: process.env.NODE_ENV || 'unknown'
     });
   }
 });
@@ -139,54 +167,22 @@ cron.schedule(reminderSchedule, async () => {
   timezone: process.env.TIMEZONE || 'UTC'
 });
 
-// Connect to MongoDB with retry logic
-const connectWithRetry = (retries = 5, delay = 5000) => {
-  console.log(`Attempting to connect to MongoDB (${retries} retries left)`);
-  
-  return mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
-    retryWrites: true,
-    w: 'majority'
-  })
-  .then(() => {
-    console.log('Connected to MongoDB successfully');
-    
-    // Only start the server in development environment
-    if (process.env.NODE_ENV === 'development') {
+// Development server startup
+if (process.env.NODE_ENV === 'development') {
+  console.log('Starting server in development mode...');
+  connectToDatabase()
+    .then(() => {
       const port = process.env.PORT || 3001;
       app.listen(port, () => {
         console.log(`Development server is running on port ${port}`);
       });
-    } else {
-      console.log('Server ready in serverless environment');
-    }
-  })
-  .catch((error) => {
-    console.error('MongoDB connection error:', {
-      message: error.message,
-      code: error.code,
-      reason: error.reason?.type
-    });
-
-    if (retries > 0) {
-      console.log(`Retrying connection in ${delay/1000} seconds...`);
-      setTimeout(() => connectWithRetry(retries - 1, delay), delay);
-    } else {
-      console.error('Failed to connect to MongoDB after multiple retries');
+    })
+    .catch((error) => {
+      console.error('Failed to start development server:', error);
       process.exit(1);
-    }
-  });
-};
-
-// Start connection process
-if (process.env.NODE_ENV === 'development') {
-  console.log('Starting server in development mode...');
-  connectWithRetry();
+    });
 } else {
   console.log('Initializing in serverless mode...');
-  connectWithRetry();
 }
 
 // Export the Express app for serverless use

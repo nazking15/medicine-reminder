@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 const auth = async (req, res, next) => {
   try {
@@ -29,6 +30,15 @@ const auth = async (req, res, next) => {
       console.log('Attempting to verify token...');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       console.log('Token verified successfully. User ID:', decoded.userId);
+
+      // Ensure database connection
+      if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+        console.log('Database connection not ready, attempting to connect...');
+        await mongoose.connect(process.env.MONGODB_URI, {
+          useNewUrlParser: true,
+          useUnifiedTopology: true
+        });
+      }
 
       const user = await User.findById(decoded.userId).select('-password');
       
