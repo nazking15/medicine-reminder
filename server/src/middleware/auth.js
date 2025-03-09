@@ -29,10 +29,13 @@ const auth = async (req, res, next) => {
     }
 
     // Log token details without exposing sensitive data
-    console.log('Token details:', {
+    const tokenParts = token.split('.');
+    console.log('Token structure:', {
       length: token.length,
       prefix: token.substring(0, 10),
-      parts: token.split('.').length
+      parts: tokenParts.length,
+      header: tokenParts[0] ? Buffer.from(tokenParts[0], 'base64').toString() : 'invalid',
+      payloadLength: tokenParts[1] ? Buffer.from(tokenParts[1], 'base64').toString().length : 0
     });
 
     try {
@@ -74,7 +77,8 @@ const auth = async (req, res, next) => {
         tokenLength: token.length,
         tokenPrefix: token.substring(0, 10),
         secretLength: process.env.JWT_SECRET.length,
-        secretPrefix: process.env.JWT_SECRET.substring(0, 5)
+        secretPrefix: process.env.JWT_SECRET.substring(0, 5),
+        environment: process.env.NODE_ENV
       });
       
       return res.status(401).json({
