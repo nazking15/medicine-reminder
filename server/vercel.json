@@ -17,8 +17,5 @@
         "Access-Control-Allow-Headers": "Content-Type,Authorization"
       }
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 } 
