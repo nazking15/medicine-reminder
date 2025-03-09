@@ -4,7 +4,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const { connectToDatabase } = require('./utils/db');
-const initializeRoutes = require('./routes');
 
 // Validate required environment variables
 const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
@@ -27,6 +26,7 @@ const app = express();
 
 // Basic middleware
 app.use(express.json());
+app.use(cors());
 
 // Log all incoming requests
 app.use((req, res, next) => {
@@ -40,49 +40,29 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'https://medicine-reminder-hhaq.vercel.app',
-  'https://medicine-reminder-hazel.vercel.app'
-];
-
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      console.log('Origin not allowed:', origin);
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    console.log('Origin allowed:', origin);
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  optionsSuccessStatus: 200,
-  exposedHeaders: ['Access-Control-Allow-Origin']
-}));
-
 // Pre-flight requests
-app.options('*', cors());
-
-// Add CORS headers to all responses
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', true);
-  }
-  next();
+app.options('*', (req, res) => {
+  console.log('Handling OPTIONS request');
+  res.sendStatus(200);
 });
 
-// Initialize routes
-initializeRoutes(app);
+// Database connection middleware
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (error) {
+    console.error('Database connection error:', error);
+    res.status(500).json({ 
+      error: 'Database connection failed',
+      message: error.message
+    });
+  }
+});
+
+// Mount all routes under /api
+const routes = require('./routes');
+app.use('/api', routes);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
@@ -138,5 +118,5 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// Export for serverless
+// Export the Express app for serverless use
 module.exports = app; 
