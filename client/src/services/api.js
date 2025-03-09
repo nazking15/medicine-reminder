@@ -12,18 +12,22 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true // Enable sending cookies in cross-origin requests
+  withCredentials: true
 });
 
-// Add request interceptor for logging
+// Add request interceptor for authentication and logging
 api.interceptors.request.use(
   (config) => {
-    // Add auth token to requests
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('Adding auth token to request');
+    } else {
+      console.warn('No auth token found in localStorage');
     }
+    
     console.log('Making request to:', config.url);
+    console.log('Request headers:', config.headers);
     console.log('Request data:', config.data);
     return config;
   },
@@ -33,20 +37,32 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for logging
+// Add response interceptor for logging and token handling
 api.interceptors.response.use(
   (response) => {
     console.log('Response:', response.data);
     return response;
   },
   (error) => {
+    if (error.response?.status === 401) {
+      console.error('Authentication error - clearing token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
     console.error('Response error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
 
 export const medicineService = {
-  getAllMedicines: (userId) => api.get(`/medicines/${userId}`),
+  getAllMedicines: (userId) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return Promise.reject(new Error('No authentication token found'));
+    }
+    return api.get(`/medicines/${userId}`);
+  },
   addMedicine: (medicineData) => api.post('/medicines', medicineData),
   updateMedicine: (id, medicineData) => api.patch(`/medicines/${id}`, medicineData),
   deleteMedicine: (id) => api.delete(`/medicines/${id}`),
