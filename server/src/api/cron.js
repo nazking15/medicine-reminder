@@ -1,7 +1,8 @@
+const mongoose = require('mongoose');
 const { sendDailyReminders } = require('../utils/notificationService');
 
 // This endpoint will be called by Vercel Cron
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     // Verify the request is from Vercel Cron
     const authHeader = req.headers.authorization;
@@ -15,6 +16,16 @@ export default async function handler(req, res) {
     console.log('Starting daily reminder job...');
     console.log('Current time:', new Date().toISOString());
     console.log('Timezone:', process.env.TIMEZONE);
+
+    // Connect to MongoDB if not connected
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      console.log('Connecting to MongoDB...');
+      await mongoose.connect(process.env.MONGODB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true
+      });
+      console.log('Connected to MongoDB');
+    }
 
     // Send reminders
     await sendDailyReminders();
@@ -32,5 +43,11 @@ export default async function handler(req, res) {
       message: 'Failed to send daily reminders',
       error: error.message
     });
+  } finally {
+    // Close MongoDB connection
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log('Closed MongoDB connection');
+    }
   }
 } 
