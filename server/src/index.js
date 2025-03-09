@@ -119,25 +119,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-// Export the Express app for serverless use
-module.exports = app;
-
-// Start server function
-const startServer = async (port) => {
-  try {
-    // Connect to MongoDB first
-    await connectToDatabase();
-    
-    // Initialize routes after successful DB connection
-    initializeRoutes();
-
-    // Start the server
-    const server = app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
-    });
-
-    // Schedule daily reminders
-    if (process.env.NODE_ENV !== 'development') {
+// For local development only
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, async () => {
+    try {
+      await connectToDatabase();
+      console.log(`Server is running on port ${PORT}`);
+      
+      // Schedule daily reminders
       cron.schedule(process.env.REMINDER_TIME || '0 8 * * *', async () => {
         try {
           await sendDailyReminders();
@@ -148,18 +138,12 @@ const startServer = async (port) => {
       }, {
         timezone: process.env.TIMEZONE || "Asia/Singapore"
       });
+    } catch (error) {
+      console.error('Failed to start server:', error);
+      process.exit(1);
     }
+  });
+}
 
-    return server;
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    throw error;
-  }
-};
-
-// Start the server
-const PORT = process.env.PORT || 3000;
-startServer(PORT).catch(err => {
-  console.error('Server startup failed:', err);
-  process.exit(1);
-}); 
+// Export the Express app for serverless use
+module.exports = app; 
