@@ -22,31 +22,43 @@ module.exports = async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
 
-    console.log('Starting daily reminder job...');
+    // Log environment variables (without exposing sensitive values)
+    console.log('\nEnvironment check:');
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('TIMEZONE:', process.env.TIMEZONE);
+    console.log('MONGODB_URI set:', !!process.env.MONGODB_URI);
+    console.log('RESEND_API_KEY set:', !!process.env.RESEND_API_KEY);
+    console.log('DEEPSEEK_API_KEY set:', !!process.env.DEEPSEEK_API_KEY);
+    
+    console.log('\nStarting daily reminder job...');
     console.log('Current time:', new Date().toISOString());
-    console.log('Timezone:', process.env.TIMEZONE);
 
     // Connect to MongoDB
-    console.log('Connecting to MongoDB...');
+    console.log('\nConnecting to MongoDB...');
     mongoConnection = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000
     });
     console.log('Connected to MongoDB');
 
     // Send reminders
     await sendDailyReminders();
-    console.log('Daily reminder job completed successfully');
+    console.log('\nDaily reminder job completed successfully');
 
   } catch (error) {
-    console.error('Error in daily reminder job:', error);
-    // We can't send response here as it's already been sent
+    console.error('\nError in daily reminder job:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
   } finally {
     // Close MongoDB connection
     if (mongoConnection) {
-      await mongoConnection.disconnect();
-      console.log('Closed MongoDB connection');
+      try {
+        await mongoConnection.disconnect();
+        console.log('\nClosed MongoDB connection');
+      } catch (error) {
+        console.error('Error closing MongoDB connection:', error);
+      }
     }
   }
 } 

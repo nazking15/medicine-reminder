@@ -13,13 +13,24 @@ const formatMedicineList = (medicines) => {
 
 const sendEmailReminder = async (email, medicines) => {
   try {
+    console.log('\nPreparing email for:', email);
+    console.log('Medicines to include:', medicines.map(m => m.name));
+
     // Generate a personalized message using Deepseek
     const context = {
       name: email.split('@')[0], // Use the part before @ as name
       medicineName: medicines[0]?.name // Use the first medicine name if available
     };
+    console.log('Generating message with context:', context);
+    
     const positiveMessage = await generatePositiveMessage(context);
+    console.log('Generated message:', positiveMessage);
+    
     const medicineList = formatMedicineList(medicines);
+    console.log('Formatted medicine list:', medicineList);
+
+    console.log('Sending email via Resend...');
+    console.log('Resend API Key length:', process.env.RESEND_API_KEY?.length || 0);
 
     const data = await resend.emails.send({
       from: 'Medicine Reminder <onboarding@resend.dev>',
@@ -52,17 +63,26 @@ const sendEmailReminder = async (email, medicines) => {
     return data;
   } catch (error) {
     console.error('Failed to send email:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     throw error;
   }
 };
 
 const sendDailyReminders = async () => {
   try {
+    console.log('\nStarting daily reminders process...');
+    
     // Get all active medicines with enabled email notifications
     const medicines = await Medicine.find({
       active: true,
       'notificationPreferences.email.enabled': true
     });
+
+    console.log(`Found ${medicines.length} active medicines with notifications enabled`);
 
     // Group medicines by email address
     const emailGroups = {};
@@ -74,14 +94,25 @@ const sendDailyReminders = async () => {
       emailGroups[email].push(medicine);
     });
 
+    console.log(`Grouped medicines for ${Object.keys(emailGroups).length} unique email addresses`);
+
     // Send emails for each group
     for (const [email, userMeds] of Object.entries(emailGroups)) {
-      await sendEmailReminder(email, userMeds);
+      console.log(`\nProcessing email group for: ${email}`);
+      console.log(`Medicines in group: ${userMeds.map(m => m.name).join(', ')}`);
+      
+      try {
+        await sendEmailReminder(email, userMeds);
+        console.log(`Successfully sent reminder to ${email}`);
+      } catch (error) {
+        console.error(`Failed to send reminder to ${email}:`, error);
+        // Continue with next email even if one fails
+      }
     }
 
-    console.log('All daily reminders sent successfully');
+    console.log('\nAll daily reminders processed');
   } catch (error) {
-    console.error('Error sending daily reminders:', error);
+    console.error('Error in sendDailyReminders:', error);
     throw error;
   }
 };
